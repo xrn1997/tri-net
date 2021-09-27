@@ -10,6 +10,10 @@ batch_size = 16  # batch块大小
 epochs = 20  # 训练轮数
 learning_rate = 0.01  # 学习率
 gamma = 10
+T = 30  # 模型更新轮数
+U = 59900  # 未标记数据大小
+mu_0 = 0.999
+mu_os = 0.01
 # 路径参数
 data_root = './data'
 mnist_path = data_root + '/MNIST'

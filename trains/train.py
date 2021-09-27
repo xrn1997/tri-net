@@ -1,5 +1,6 @@
 import numpy as np
 import torch.cuda
+from torch.autograd import Variable
 
 import models
 import params
@@ -8,7 +9,6 @@ from tools import utils
 
 class Trainer:
     def __init__(self, feature_extractor, label_predictor: [], optimizer):
-
         if torch.cuda.is_available() and params.use_gpu:
             self.device = torch.device("cuda")
         else:
@@ -36,12 +36,11 @@ class Trainer:
         for batch_idx, data in enumerate(dataloader):
             p = float(batch_idx + start_steps) / total_steps
             constant = 2. / (1. + np.exp(-params.gamma * p)) - 1
-            inputs, label1, label2, label3 = data
-            inputs = inputs.to(self.device, non_blocking=True)
-            label1 = label1.to(self.device, non_blocking=True)
-            label2 = label2.to(self.device, non_blocking=True)
-            label3 = label3.to(self.device, non_blocking=True)
-
+            inputs, labels = data
+            inputs = Variable(inputs).to(self.device, non_blocking=True)
+            label1 = Variable(labels[:, 0]).to(self.device, non_blocking=True)
+            label2 = Variable(labels[:, 1]).to(self.device, non_blocking=True)
+            label3 = Variable(labels[:, 2]).to(self.device, non_blocking=True)
             # 优化器
             self.optimizer = utils.optimizer_scheduler(self.optimizer, p)
             self.optimizer.zero_grad()
@@ -89,8 +88,8 @@ class Trainer:
             constant = 2. / (1. + np.exp(-10 * p)) - 1.
             inputs, label = data
 
-            inputs = inputs.to(self.device, non_blocking=True)
-            label = label.to(self.device, non_blocking=True)
+            inputs = Variable(inputs).to(self.device, non_blocking=True)
+            label = Variable(label).to(self.device, non_blocking=True)
 
             # 提取特征
             feature = self.fe(inputs)
@@ -112,3 +111,21 @@ class Trainer:
         print('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
             correct3, len(dataloader.dataset), 100. * float(correct3) / len(dataloader.dataset)
         ))
+
+    # def update(self, epoch):
+    #     flag = 1
+    #     mu = params.mu_0
+    #     for t in range(1, params.T + 1):
+    #         n_t = min(1000 * 2 ^ t, params.U)
+    #         if n_t == params.U:
+    #             if t % 4 == 0:
+    #                 continue
+    #         if flag == 1:
+    #             flag = 0
+    #             mu_t = mu - params.mu_os
+    #         else:
+    #             mu_t = mu
+    #         for v in range(1, 4):
+    #             pseudo_data = []
+    #             pseudo_data = label()
+    #             pseduo_data = des()

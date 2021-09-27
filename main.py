@@ -40,7 +40,7 @@ def main():
     trainer = Trainer(feature_extractor, label_predictor, optimizer)
     for epoch in range(params.epochs):
         trainer.train(epoch=epoch, dataloader=train_dataloader)
-        #  trainer.test(dataloader=test_dataloader)
+        trainer.test(dataloader=test_dataloader)
 
 
 if __name__ == '__main__':
