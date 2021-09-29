@@ -1,10 +1,11 @@
 import numpy as np
 import torch.cuda
 from torch.autograd import Variable
-
+from logzero import logger
 import models
 import params
 from tools import utils
+from tools.utils import labeling, des
 
 
 class Trainer:
@@ -32,7 +33,7 @@ class Trainer:
         self.lp3.train()
         # steps
         start_steps = epoch * len(dataloader)
-        total_steps = params.epochs * len(dataloader)
+        total_steps = params.initial_epochs * len(dataloader)
         for batch_idx, data in enumerate(dataloader):
             p = float(batch_idx + start_steps) / total_steps
             constant = 2. / (1. + np.exp(-params.gamma * p)) - 1
@@ -59,9 +60,10 @@ class Trainer:
             # 反向传播
             loss.backward()
             self.optimizer.step()
-            # 每10批次输出一次损失
-            if (batch_idx + 1) % 10 == 0:
-                print('[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
+            # 每5批次输出一次损失
+            if (batch_idx + 1) % 5 == 0:
+                logger.info('epoch:{}\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
+                    epoch,
                     batch_idx * len(inputs),
                     len(dataloader.dataset),
                     100. * batch_idx / len(dataloader),
@@ -84,8 +86,6 @@ class Trainer:
         correct2 = 0.0
         correct3 = 0.0
         for batch_idx, data in enumerate(dataloader):
-            p = float(batch_idx) / len(dataloader)
-            constant = 2. / (1. + np.exp(-10 * p)) - 1.
             inputs, label = data
 
             inputs = Variable(inputs).to(self.device, non_blocking=True)
@@ -102,30 +102,46 @@ class Trainer:
             correct2 += pred2.eq(label.data.view_as(pred1)).cpu().sum()
             correct3 += pred3.eq(label.data.view_as(pred1)).cpu().sum()
 
-        print('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
+        logger.info('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
             correct1, len(dataloader.dataset), 100. * float(correct1) / len(dataloader.dataset)
         ))
-        print('\n预测器2的正确率: {}/{} ({:.4f}%)'.format(
+        logger.info('\n预测器2的正确率: {}/{} ({:.4f}%)'.format(
             correct2, len(dataloader.dataset), 100. * float(correct2) / len(dataloader.dataset)
         ))
-        print('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
+        logger.info('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
             correct3, len(dataloader.dataset), 100. * float(correct3) / len(dataloader.dataset)
         ))
 
-    # def update(self, epoch):
-    #     flag = 1
-    #     mu = params.mu_0
-    #     for t in range(1, params.T + 1):
-    #         n_t = min(1000 * 2 ^ t, params.U)
-    #         if n_t == params.U:
-    #             if t % 4 == 0:
-    #                 continue
-    #         if flag == 1:
-    #             flag = 0
-    #             mu_t = mu - params.mu_os
-    #         else:
-    #             mu_t = mu
-    #         for v in range(1, 4):
-    #             pseudo_data = []
-    #             pseudo_data = label()
-    #             pseduo_data = des()
+    def update(self, mu) -> None:
+        """
+        :param mu:  未标记的数据集
+        """
+        # setup models
+        self.fe.train()
+        self.lp1.train()
+        self.lp2.train()
+        self.lp3.train()
+        md = [self.lp1, self.lp2, self.lp3]
+        flag = 1
+        sigma = params.sigma_0
+        for t in range(1, params.T + 1):
+            n_t = min(1000 * 2 ^ t, params.U)
+            if n_t == params.U:
+                if t % 4 == 0:
+                    continue
+            if flag == 1:
+                flag = 0
+                sigma_t = sigma - params.sigma_os
+            else:
+                sigma_t = sigma
+
+            for v in range(1, 4):
+                plv = []
+                plv = labeling(self.fe, md[(v + 1) % 3], md[(v + 1) % 3], mu, n_t, sigma_t)
+                plv = des(self.fe, plv, md[(v + 1) % 3], md[(v + 1) % 3])
+                if v == 1:
+                    for epoch in range(params.update_epochs):
+                        self.train(epoch=epoch, )
+                else:
+                    for epoch in range(params.update_epochs):
+                        self.train(epoch=epoch, )

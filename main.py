@@ -1,16 +1,18 @@
 import os
+import time
 
 import torch
-
+import logging
 import params
 import tools.utils as ut
+from tools import utils
 from trains.train import Trainer
 
 
 def main():
-    print("main")
+    logging.basicConfig(level=logging.INFO)
     # 准备数据集
-    train_dataloader = ut.get_dataloader(params.dataset)
+    initial_dataloader, unlabeled_dataset = ut.get_dataloader(params.dataset)
     test_dataloader = ut.get_dataloader(params.dataset, train=False)
 
     # 初始化模块
@@ -21,7 +23,10 @@ def main():
     optimizer = torch.optim.SGD([{'params': feature_extractor.parameters()},
                                  {'params': label_predictor[0].parameters()},
                                  {'params': label_predictor[1].parameters()},
-                                 {'params': label_predictor[2].parameters()}], lr=params.learning_rate, momentum=0.9)
+                                 {'params': label_predictor[2].parameters()}],
+                                lr=params.learning_rate,
+                                momentum=0.9,
+                                weight_decay=0.0001)
 
     # 加载训练参数
     save_path = params.tri_net_save_path
@@ -38,9 +43,17 @@ def main():
 
     # 初始化Trainer
     trainer = Trainer(feature_extractor, label_predictor, optimizer)
-    for epoch in range(params.epochs):
-        trainer.train(epoch=epoch, dataloader=train_dataloader)
-        trainer.test(dataloader=test_dataloader)
+
+    # 日志存储
+    utils.log_save(params.save_dir)
+    start_time = time.time()
+    for epoch in range(params.initial_epochs):
+        trainer.train(epoch=epoch, dataloader=initial_dataloader)
+        utils.log_save(params.save_dir, start_time=start_time, limit=3600)
+        start_time = time.time()
+
+    trainer.test(dataloader=test_dataloader)
+    # trainer.update(unlabeled_dataset)
 
 
 if __name__ == '__main__':

@@ -34,5 +34,6 @@ class TriNetLoss(nn.Module):
     def __init__(self):
         super(TriNetLoss, self).__init__()
 
-    def forward(self, x, y, z):
+    @staticmethod
+    def forward(x, y, z):
         return torch.sum(x + y + z) / len(x)

@@ -1,21 +1,21 @@
 """
 测试代码块的地方，尝试各种函数，与程序本体无关。
 """
+import logzero
 import torch.nn as nn
 import torch
+from logzero import logger
 
 if __name__ == '__main__':
     std = 0.001
     relu = nn.ReLU()
     result = relu(torch.randn(3, 3) * std)
-    print(result)
-    print(result.sum())
-    print(result / result.sum())
+    logger.info(result)
+    logger.info(result.sum())
+    logger.info(result / result.sum())
+    logger.info(torch.zeros(3))
+    logger.info(3.5 / 2)
+    logger.info(3.5 % 2)
+    logger.info(1 % 3)
 
-    print(torch.zeros(3))
 
-    print(3.5 / 2)
-    print(3.5 % 2)
-
-    for i in range(1,3):
-        print(i)

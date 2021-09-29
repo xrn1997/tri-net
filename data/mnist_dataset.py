@@ -3,11 +3,11 @@ import time
 
 import numpy as np
 import torch
-from torch import multiprocessing
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 
 import params
+from tools import utils
 
 
 class MNISTDataSet(Dataset):
@@ -21,12 +21,7 @@ class MNISTDataSet(Dataset):
             self.labels = np.load(label_save_path, allow_pickle=True)
         else:
             for j in self.data:
-                temp = []
-                for k in range(3):
-                    noise = torch.relu(torch.randn(10) * params.std)
-                    noise[j[1]] = noise[j[1]] + 1
-                    noise = noise / noise.sum()
-                    temp.append(noise.tolist())
+                temp = utils.gen_labels(j[1])
                 self.labels.append(temp)
             np.save(label_save_path, self.labels)
 
@@ -44,11 +39,18 @@ if __name__ == '__main__':
         transforms.Normalize(mean=params.dataset_mean, std=params.dataset_std)
     ])
     dataset = MNISTDataSet(root='./MNIST', transform=tf)
-    dataloader = DataLoader(dataset=dataset,
+    length = len(dataset)
+    first_size, second_size = params.initial_size, length - params.initial_size
+    first_dataset, second_dataset = torch.utils.data.random_split(dataset, [first_size, second_size])
+
+    print(len(first_dataset))
+    print(len(second_dataset))
+    dataloader = DataLoader(dataset=first_dataset,
                             batch_size=16,  # 每次处理的batch大小
                             shuffle=True,  # shuffle的作用是乱序，先顺序读取，再乱序索引。
-                            num_workers=multiprocessing.cpu_count(),  # 线程数
+                            num_workers=1,  # 线程数
                             pin_memory=True)
+
     time_start = time.time()
     for i in dataloader:
         print(i)

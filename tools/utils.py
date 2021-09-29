@@ -1,4 +1,7 @@
-from torch import multiprocessing
+import time
+
+import logzero
+import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import params
@@ -16,19 +19,24 @@ def get_dataloader(dataset, train=True):
         else:
             data = datasets.MNIST(root=params.mnist_path, train=False, transform=transform,
                                   download=True)
-        dataloader = DataLoader(dataset=data,
+        length = len(data)
+        first_size, second_size = params.initial_size, length - params.initial_size
+        first_dataset, second_dataset = torch.utils.data.random_split(data, [first_size, second_size])
+
+        dataloader = DataLoader(dataset=first_dataset,
                                 batch_size=params.batch_size,  # 每次处理的batch大小
                                 shuffle=True,  # shuffle的作用是乱序，先顺序读取，再乱序索引。
-                                num_workers=multiprocessing.cpu_count(),  # 线程数
+                                num_workers=1,  # 线程数
                                 pin_memory=True)
     else:
         raise Exception('There is no dataset named {}'.format(str(dataset)))
-    return dataloader
+    return dataloader, second_dataset
 
 
 def optimizer_scheduler(optimizer, p):
     """
     调整学习率
+
     :param optimizer: optimizer for updating parameters
     :param p: a variable for adjusting learning rate
     :return: optimizer
@@ -37,3 +45,42 @@ def optimizer_scheduler(optimizer, p):
         param_group['lr'] = 0.01 / (1. + 10 * p) ** 0.75
 
     return optimizer
+
+
+def gen_labels(label: int, types=10, num=3) -> list:
+    """
+    根据标签生成n个添加噪声的one-hot标签
+
+    :param num: 生成的标签数量
+    :param label: 原始标签，int类型
+    :param types: 分类数量
+    :return: 添加噪声后的标签列表,该列表中有3个one-hot标签向量（列表）
+    """
+    temp = []
+    for k in range(num):
+        noise = torch.relu(torch.randn(types) * params.std)
+        noise[label] = noise[label] + 1
+        noise = noise / noise.sum()
+        temp.append(noise.tolist())
+    return temp
+
+
+def des(ms, plv, mj, mh):
+    return
+
+
+def labeling(ms, mj, mh, mu, nt, sigma_t):
+    return
+
+
+def log_save(save_dir, start_time=time.time(), limit=0):
+    """
+    日志存储
+
+    :param save_dir: 存储目录
+    :param start_time: 开始时间
+    :param limit: 隔多久新开一个文件，单位为秒
+    """
+    if time.time() - start_time > limit:
+        logzero.logfile(save_dir + "/output_" + str(time.time()) + ".log")
+        start_time = time.time()
