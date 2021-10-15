@@ -25,12 +25,13 @@ class Trainer:
         # 优化器
         self.optimizer = optimizer
 
-    def train(self, epoch, dataloader):
+    def train(self, epoch, dataset):
         # setup models
         self.fe.train()
         self.lp1.train()
         self.lp2.train()
         self.lp3.train()
+        dataloader = utils.get_dataloader(dataset=dataset)
         # steps
         start_steps = epoch * len(dataloader)
         total_steps = params.initial_epochs * len(dataloader)
@@ -65,7 +66,7 @@ class Trainer:
                 logger.info('epoch:{}\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
                     epoch,
                     batch_idx * len(inputs),
-                    len(dataloader.dataset),
+                    len(dataloader.dataset1),
                     100. * batch_idx / len(dataloader),
                     loss.item()
                 ))
@@ -75,7 +76,7 @@ class Trainer:
         torch.save(self.lp2.state_dict(), save_path + "/lp2.pth")
         torch.save(self.lp3.state_dict(), save_path + "/lp3.pth")
 
-    def test(self, dataloader):
+    def test(self, dataset):
         # setup models
         self.fe.eval()
         self.lp1.eval()
@@ -85,6 +86,7 @@ class Trainer:
         correct1 = 0.0
         correct2 = 0.0
         correct3 = 0.0
+        dataloader = utils.get_dataloader(dataset=dataset)
         for batch_idx, data in enumerate(dataloader):
             inputs, label = data
 
@@ -103,18 +105,21 @@ class Trainer:
             correct3 += pred3.eq(label.data.view_as(pred1)).cpu().sum()
 
         logger.info('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
-            correct1, len(dataloader.dataset), 100. * float(correct1) / len(dataloader.dataset)
+            correct1, len(dataloader.dataset1), 100. * float(correct1) / len(dataloader.dataset1)
         ))
         logger.info('\n预测器2的正确率: {}/{} ({:.4f}%)'.format(
-            correct2, len(dataloader.dataset), 100. * float(correct2) / len(dataloader.dataset)
+            correct2, len(dataloader.dataset1), 100. * float(correct2) / len(dataloader.dataset1)
         ))
         logger.info('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
-            correct3, len(dataloader.dataset), 100. * float(correct3) / len(dataloader.dataset)
+            correct3, len(dataloader.dataset1), 100. * float(correct3) / len(dataloader.dataset1)
         ))
 
-    def update(self, mu) -> None:
+    def update(self, initial_dataset, unlabeled_dataset) -> None:
         """
-        :param mu:  未标记的数据集
+        更新模型。
+
+        :param initial_dataset:  初始数据集。
+        :param unlabeled_dataset:   未标记的数据集。
         """
         # setup models
         self.fe.train()
@@ -124,6 +129,8 @@ class Trainer:
         md = [self.lp1, self.lp2, self.lp3]
         flag = 1
         sigma = params.sigma_0
+        mu = unlabeled_dataset
+        lv = initial_dataset
         for t in range(1, params.T + 1):
             n_t = min(1000 * 2 ^ t, params.U)
             if n_t == params.U:
@@ -136,12 +143,12 @@ class Trainer:
                 sigma_t = sigma
 
             for v in range(1, 4):
-                plv = []
-                plv = labeling(self.fe, md[(v + 1) % 3], md[(v + 1) % 3], mu, n_t, sigma_t)
-                plv = des(self.fe, plv, md[(v + 1) % 3], md[(v + 1) % 3])
+                plv = labeling(self.fe, md[v % 3], md[(v + 1) % 3], mu, n_t, sigma_t)
+                plv = des(self.fe, plv, md[v % 3], md[(v + 1) % 3])
+                lv = lv + plv
                 if v == 1:
                     for epoch in range(params.update_epochs):
-                        self.train(epoch=epoch, )
+                        self.train(epoch=epoch, dataset=lv)
                 else:
                     for epoch in range(params.update_epochs):
-                        self.train(epoch=epoch, )
+                        self.train(epoch=epoch, dataset=lv)

@@ -1,7 +1,6 @@
 """
 测试代码块的地方，尝试各种函数，与程序本体无关。
 """
-import logzero
 import torch.nn as nn
 import torch
 from logzero import logger
@@ -17,5 +16,4 @@ if __name__ == '__main__':
     logger.info(3.5 / 2)
     logger.info(3.5 % 2)
     logger.info(1 % 3)
-
 

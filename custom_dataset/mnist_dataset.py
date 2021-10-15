@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
-
+from logzero import logger
 import params
 from tools import utils
 
@@ -29,6 +29,12 @@ class MNISTDataSet(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
+        """
+         get item.
+
+        :param index:  item 索引
+        :return: 第一项是数据，第二项是3个标签（加了噪声的标签）
+        """
         return self.data[index][0], torch.Tensor(self.labels[index])
 
 
@@ -39,12 +45,13 @@ if __name__ == '__main__':
         transforms.Normalize(mean=params.dataset_mean, std=params.dataset_std)
     ])
     dataset = MNISTDataSet(root='./MNIST', transform=tf)
+    logger.info(dataset[0])
     length = len(dataset)
     first_size, second_size = params.initial_size, length - params.initial_size
     first_dataset, second_dataset = torch.utils.data.random_split(dataset, [first_size, second_size])
 
-    print(len(first_dataset))
-    print(len(second_dataset))
+    logger.info(len(first_dataset))
+    logger.info(len(second_dataset))
     dataloader = DataLoader(dataset=first_dataset,
                             batch_size=16,  # 每次处理的batch大小
                             shuffle=True,  # shuffle的作用是乱序，先顺序读取，再乱序索引。
@@ -53,7 +60,7 @@ if __name__ == '__main__':
 
     time_start = time.time()
     for i in dataloader:
-        print(i)
+        logger.info(i)
         break
     time_end = time.time()
-    print('MNIST DataSet totally cost', time_end - time_start)
+    logger.info('MNIST DataSet totally cost: {}'.format(time_end - time_start))

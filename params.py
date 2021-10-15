@@ -17,7 +17,7 @@ sigma_0 = 0.999  # σ_0
 sigma_os = 0.01  # σ_os
 initial_size = 100  # 初始数据集大小
 # 路径参数
-data_root = './data'
+data_root = './custom_dataset'
 mnist_path = data_root + '/MNIST'
 save_dir = './experiment'
 tri_net_save_path = save_dir + "/tri-net"

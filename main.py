@@ -7,13 +7,23 @@ import params
 import tools.utils as ut
 from tools import utils
 from trains.train import Trainer
+from torch.utils.data import DataLoader
 
 
 def main():
+    # 设置日志等级
     logging.basicConfig(level=logging.INFO)
-    # 准备数据集
-    initial_dataloader, unlabeled_dataset = ut.get_dataloader(params.dataset)
-    test_dataloader = ut.get_dataloader(params.dataset, train=False)
+
+    # 训练集
+    train_dataset = ut.get_dataset(params.dataset)
+
+    # 拆分训练集，这里unlabeled_dataset自身虽然带标签，但是我们不用，假装没有。
+    length = len(train_dataset)
+    first_size, second_size = params.initial_size, length - params.initial_size
+    initial_dataset, unlabeled_dataset = torch.utils.data.random_split(train_dataset, [first_size, second_size])
+
+    # 测试集
+    test_dataset = ut.get_dataset(params.dataset, train=False)
 
     # 初始化模块
     feature_extractor = params.feature_extractor_dict[params.dataset]
@@ -48,12 +58,14 @@ def main():
     utils.log_save(params.save_dir)
     start_time = time.time()
     for epoch in range(params.initial_epochs):
-        trainer.train(epoch=epoch, dataloader=initial_dataloader)
+        trainer.train(epoch=epoch, dataset=initial_dataset)
+
+        # 保存日志到文件
         utils.log_save(params.save_dir, start_time=start_time, limit=3600)
         start_time = time.time()
 
-    trainer.test(dataloader=test_dataloader)
-    # trainer.update(unlabeled_dataset)
+    trainer.test(dataset=test_dataset)
+    trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
 
 
 if __name__ == '__main__':
