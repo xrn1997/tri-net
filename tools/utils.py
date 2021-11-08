@@ -64,34 +64,6 @@ def gen_labels(label: int, types=10, num=3) -> list:
     return temp
 
 
-def des(ms, plv, mj, mh):
-    """
-    判断标签是否稳定。
-
-    :param ms: 特征提取model
-    :param plv: 待处理的有伪标签的数据集
-    :param mj:  三个预测model之一。
-    :param mh:  三个预测model之一，且与mj不同。
-    :return: 稳定的伪标签数据集。
-    """
-    return
-
-
-def labeling(ms, mj, mh, mu, nt, sigma_t):
-    """
-    预测标签。
-
-    :param ms: 特征提取model。
-    :param mj:  三个预测model之一。
-    :param mh:  三个预测model之一，且与mj不同。
-    :param mu: 未标记的数据集
-    :param nt:  数据集大小（从mu中拿nt大小的未标记数据）。
-    :param sigma_t: 过滤不确定的伪标签的阈值参数。
-    :return: 打好伪标签的数据集。
-    """
-    return
-
-
 def log_save(save_dir, start_time=time.time(), limit=0):
     """
     日志存储

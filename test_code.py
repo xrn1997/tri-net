@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch
 from logzero import logger
 
+import params
+
 if __name__ == '__main__':
     std = 0.001
     relu = nn.ReLU()
@@ -16,4 +18,8 @@ if __name__ == '__main__':
     logger.info(3.5 / 2)
     logger.info(3.5 % 2)
     logger.info(1 % 3)
+    a = torch.Tensor([0.949])
+    logger.info(torch.log(a))
 
+    k = torch.zeros(params.batch_size)
+    logger.info(k)

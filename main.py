@@ -2,17 +2,15 @@ import os
 import time
 
 import torch
-import logging
 import params
 import tools.utils as ut
 from tools import utils
 from trains.train import Trainer
 from torch.utils.data import DataLoader
+from logzero import logger
 
 
 def main():
-    # 设置日志等级
-    logging.basicConfig(level=logging.INFO)
 
     # 训练集
     train_dataset = ut.get_dataset(params.dataset)
@@ -21,7 +19,6 @@ def main():
     length = len(train_dataset)
     first_size, second_size = params.initial_size, length - params.initial_size
     initial_dataset, unlabeled_dataset = torch.utils.data.random_split(train_dataset, [first_size, second_size])
-
     # 测试集
     test_dataset = ut.get_dataset(params.dataset, train=False)
 
@@ -55,17 +52,17 @@ def main():
     trainer = Trainer(feature_extractor, label_predictor, optimizer)
 
     # 日志存储
-    utils.log_save(params.save_dir)
-    start_time = time.time()
-    for epoch in range(params.initial_epochs):
-        trainer.train(epoch=epoch, dataset=initial_dataset)
-
-        # 保存日志到文件
-        utils.log_save(params.save_dir, start_time=start_time, limit=3600)
-        start_time = time.time()
+    # utils.log_save(params.save_dir)
+    # start_time = time.time()
+    # for epoch in range(params.initial_epochs):
+    #     trainer.train(epoch=epoch, dataset=initial_dataset)
+    #
+    #     # 保存日志到文件
+    #     utils.log_save(params.save_dir, start_time=start_time, limit=3600)
+    #     start_time = time.time()
 
     trainer.test(dataset=test_dataset)
-    trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
+    # trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
 
 
 if __name__ == '__main__':
