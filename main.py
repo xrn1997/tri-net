@@ -7,11 +7,9 @@ import tools.utils as ut
 from tools import utils
 from trains.train import Trainer
 from torch.utils.data import DataLoader
-from logzero import logger
 
 
 def main():
-
     # 训练集
     train_dataset = ut.get_dataset(params.dataset)
 
@@ -60,9 +58,10 @@ def main():
     #     # 保存日志到文件
     #     utils.log_save(params.save_dir, start_time=start_time, limit=3600)
     #     start_time = time.time()
-
+    #
+    # trainer.test(dataset=test_dataset)
+    trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
     trainer.test(dataset=test_dataset)
-    # trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
 
 
 if __name__ == '__main__':

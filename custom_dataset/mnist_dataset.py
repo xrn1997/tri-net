@@ -46,6 +46,7 @@ if __name__ == '__main__':
     ])
     dataset = MNISTDataSet(root='./MNIST', transform=tf)
     logger.info(dataset[0])
+
     length = len(dataset)
     first_size, second_size = params.initial_size, length - params.initial_size
     first_dataset, second_dataset = torch.utils.data.random_split(dataset, [first_size, second_size])

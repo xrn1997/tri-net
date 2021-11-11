@@ -1,9 +1,14 @@
+import math
+import os
+
+import numpy
 import numpy as np
 import torch.cuda
 from torch.autograd import Variable
 from logzero import logger
 import models
 import params
+import custom_dataset
 from tools import utils
 
 
@@ -19,19 +24,20 @@ class Trainer:
 
         # 损失函数
         self.class_criterion = models.OneHotNLLLoss(reduction='multiply')
+        self.update_criterion = models.OneHotNLLLoss()
         self.tri_net_criterion = models.TriNetLoss()
         # 优化器
         self.optimizer = optimizer
 
-    def train(self, epoch, dataset, mv=-1, ms=True):
+    def train(self, epoch, dataset, mv=-1):
+        logger.info("train")
         # 设置模式
         self.fe.train()
         self.lp[0].train()
         self.lp[1].train()
         self.lp[2].train()
-
-        dataloader = utils.get_dataloader(dataset=dataset)
-
+        # dataloader
+        dataloader = utils.get_dataloader(dataset=dataset, drop_last=True)
         # steps
         start_steps = epoch * len(dataloader)
         total_steps = params.initial_epochs * len(dataloader)
@@ -41,27 +47,23 @@ class Trainer:
             p = float(batch_idx + start_steps) / total_steps
             constant = 2. / (1. + np.exp(-params.gamma * p)) - 1
 
-            inputs, labels = data
-            inputs = Variable(inputs).to(self.device, non_blocking=True)
-            label1 = Variable(labels[:, 0]).to(self.device, non_blocking=True)
-            label2 = Variable(labels[:, 1]).to(self.device, non_blocking=True)
-            label3 = Variable(labels[:, 2]).to(self.device, non_blocking=True)
-
             # 优化器
             self.optimizer = utils.optimizer_scheduler(self.optimizer, p)
             self.optimizer.zero_grad()
 
-            # 提取特征
-            if ms:
-                feature = self.fe(inputs)
-            else:
-                feature = inputs
-
+            inputs, labels = data
+            inputs = Variable(inputs).to(self.device, non_blocking=True)
             if mv == -1:
+                # 提取特征
+                feature = self.fe(inputs)
                 # 预测标签
                 preds1 = self.lp[0](feature)
                 preds2 = self.lp[1](feature)
                 preds3 = self.lp[2](feature)
+                # 标签
+                label1 = Variable(labels[:, 0]).to(self.device, non_blocking=True)
+                label2 = Variable(labels[:, 1]).to(self.device, non_blocking=True)
+                label3 = Variable(labels[:, 2]).to(self.device, non_blocking=True)
                 # 损失
                 loss1 = self.class_criterion(preds1, label1)
                 loss2 = self.class_criterion(preds2, label2)
@@ -71,10 +73,14 @@ class Trainer:
                 # 反向传播
                 loss.backward()
             else:
+                # 提取特征
+                feature = self.fe(inputs).data
                 # 预测标签
                 preds = self.lp[mv](feature)
+                # 标签
+                labels = Variable(labels).to(self.device, non_blocking=True)
                 # 损失
-                loss = torch.nn.NLLLoss(preds)
+                loss = self.update_criterion(preds, labels)
                 # 反向传播
                 loss.backward()
             self.optimizer.step()
@@ -96,7 +102,7 @@ class Trainer:
         torch.save(self.lp[2].state_dict(), save_path + "/lp3.pth")
 
     def test(self, dataset):
-
+        logger.info("test")
         # 设置模式
         self.fe.eval()
         self.lp[0].eval()
@@ -145,17 +151,20 @@ class Trainer:
         :param initial_dataset:  初始数据集。
         :param unlabeled_dataset:   未标记的数据集。
         """
+        logger.info("update")
         # setup models
         self.fe.train()
         self.lp[0].train()
         self.lp[1].train()
         self.lp[2].train()
-
         flag = 1
         sigma = params.sigma_0
         mu = unlabeled_dataset
-        lv = initial_dataset
-
+        l = [[], [], []]
+        for i in initial_dataset:
+            l[0].append([i[0], i[1][0]])
+            l[1].append([i[0], i[1][1]])
+            l[2].append([i[0], i[1][2]])
         for t in range(1, params.T + 1):
             n_t = min(1000 * 2 ^ t, params.U)
             if n_t == params.U:
@@ -166,17 +175,12 @@ class Trainer:
                 sigma_t = sigma - params.sigma_os
             else:
                 sigma_t = sigma
-
             for v in range(0, 3):
                 plv = self.labeling((v + 1) % 3, (v + 2) % 3, mu, n_t, sigma_t)
                 plv = self.des(plv, (v + 1) % 3, (v + 2) % 3)
-                lv = lv + plv
-                if v == 0:
-                    for epoch in range(params.update_epochs):
-                        self.train(epoch=epoch, dataset=lv, mv=0)
-                else:
-                    for epoch in range(params.update_epochs):
-                        self.train(epoch=epoch, dataset=lv, mv=v, ms=False)
+                lv = l[v] + plv
+                dataset = custom_dataset.List2DataSet(lv)
+                self.train(epoch=params.update_epochs, dataset=dataset, mv=v)
 
     def labeling(self, mj, mh, mu, nt, sigma_t):
         """
@@ -189,11 +193,14 @@ class Trainer:
         :param sigma_t: 过滤不确定的伪标签的阈值参数。
         :return: 打好伪标签的数据集。
         """
-        dataloader = utils.get_dataloader(dataset=mu)
+        logger.info("labeling")
+        dataloader = utils.get_dataloader(dataset=mu, shuffle=False)
 
-        plv = mu
+        plv = []
 
         for batch_idx, data in enumerate(dataloader):
+            if batch_idx * params.batch_size > nt:
+                break
             inputs, _ = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
 
@@ -203,9 +210,13 @@ class Trainer:
             preds_h = self.lp[mh](feature).data.max(1, keepdim=True)
 
             for i in range(0, params.batch_size):
-                if preds_j[i][1] == preds_h[i][1] and (preds_j[i][0] + preds_h[i][0]) / 2 >= torch.log(sigma_t):
-                    logger.debug("TODO 将数据合并到训练集中")
-
+                equals = (preds_j[1][i] == preds_h[1][i])
+                confident = ((preds_j[0][i] + preds_h[0][i]) / 2 >= math.log(sigma_t))
+                if equals and confident:
+                    # 10分类，所以生成了一个长度为10的one-hot
+                    label = torch.zeros(10)
+                    label[preds_j[1][i].item()] = label[preds_j[1][i].item()] + 1
+                    plv.append([inputs[i].cpu(), label])
         return plv
 
     def des(self, plv, mj, mh):
@@ -217,28 +228,31 @@ class Trainer:
         :param mh:  三个预测model之一，且与mj不同。
         :return: 稳定的伪标签数据集。
         """
+        logger.info("des")
         # 设置模式
         self.fe.train()
         self.lp[0].train()
         self.lp[1].train()
         self.lp[2].train()
 
-        dataloader = utils.get_dataloader(dataset=plv)
+        dataset = custom_dataset.List2DataSet(plv)
+        dataloader = utils.get_dataloader(dataset, shuffle=False, drop_last=True)
 
-        for batch_idx, data in enumerate(dataloader):
+        for index, data in enumerate(dataloader):
             inputs, labels = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
-            label_j = Variable(labels[:, mj]).to(self.device, non_blocking=True)
-            label_h = Variable(labels[:, mh]).to(self.device, non_blocking=True)
-
+            labels = Variable(labels).to(self.device, non_blocking=True).data.max(1, keepdim=True)[1]
             # 记录预测错误的次数
-            k = torch.zeros(params.batch_size)
+            k = torch.zeros(inputs.shape[0])
             for time in range(0, 9):
                 feature = self.fe(inputs)
-                preds_j = self.lp[mj](feature)
-                preds_h = self.lp[mh](feature)
-                error_j = params.batch_size - preds_j.eq(label_j.data.view_as(label_j)).cpu().sum()
-                error_h = params.batch_size - preds_h.eq(label_h.data.view_as(label_h)).cpu().sum()
+                preds_j = self.lp[mj](feature).data.max(1, keepdim=True)[1]
+                preds_h = self.lp[mh](feature).data.max(1, keepdim=True)[1]
+                error_j = preds_j.ne(labels.data.view_as(preds_j)).cpu().squeeze()
+                error_h = preds_h.ne(labels.data.view_as(preds_h)).cpu().squeeze()
                 k = k + error_j + error_h
+            for n in range(0, inputs.shape[0]):
+                if k[n] > 3:
+                    plv.pop(index + n)
 
         return plv
