@@ -88,7 +88,9 @@ def test_sum():
 
 if __name__ == '__main__':
     # 测试列表
-    plv = [[torch.Tensor([1, 2]), torch.Tensor([2])], [torch.Tensor([2, 3]), torch.Tensor([3])]]
-    test_list2dataset(plv)
-    test = numpy.load(params.tri_net_save_path + "/l0_1.npy", allow_pickle=True)
-    test_list2dataset(test, batch_size=2)
+    # plv = [[torch.Tensor([1, 2]), torch.Tensor([2])], [torch.Tensor([2, 3]), torch.Tensor([3])]]
+    # test_list2dataset(plv)
+    # test = numpy.load(params.tri_net_save_path + "/l0_1.npy", allow_pickle=True)
+    # test_list2dataset(test, batch_size=2)
+
+    logger.debug(1000 * pow(2, 3))

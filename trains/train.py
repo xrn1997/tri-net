@@ -1,7 +1,4 @@
 import math
-import os
-
-import numpy
 import numpy as np
 import torch.cuda
 from torch.autograd import Variable
@@ -30,7 +27,7 @@ class Trainer:
         self.optimizer = optimizer
 
     def train(self, epoch, dataset, mv=-1):
-        logger.info("train")
+        logger.debug("train")
         # 设置模式
         self.fe.train()
         self.lp[0].train()
@@ -53,9 +50,12 @@ class Trainer:
 
             inputs, labels = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
-            if mv == -1:
+            if mv == 0:
                 # 提取特征
+                feature = self.fe(inputs).data
+            else:
                 feature = self.fe(inputs)
+            if mv == -1:
                 # 预测标签
                 preds1 = self.lp[0](feature)
                 preds2 = self.lp[1](feature)
@@ -73,8 +73,6 @@ class Trainer:
                 # 反向传播
                 loss.backward()
             else:
-                # 提取特征
-                feature = self.fe(inputs).data
                 # 预测标签
                 preds = self.lp[mv](feature)
                 # 标签
@@ -86,12 +84,12 @@ class Trainer:
             self.optimizer.step()
 
             # 每5批次输出一次损失
-            if (batch_idx + 1) % 5 == 0:
-                logger.info('epoch:{}\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
+            if (batch_idx + 1) % 5 == 0 or (batch_idx + 1) * len(data) == len(dataloader.dataset):
+                logger.debug('epoch:{}\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
                     epoch,
-                    batch_idx * len(inputs),
+                    (batch_idx + 1) * len(inputs),
                     len(dataloader.dataset),
-                    100. * batch_idx / len(dataloader),
+                    100. * (batch_idx + 1) / len(dataloader),
                     loss.item()
                 ))
 
@@ -102,7 +100,7 @@ class Trainer:
         torch.save(self.lp[2].state_dict(), save_path + "/lp3.pth")
 
     def test(self, dataset):
-        logger.info("test")
+        logger.debug("test")
         # 设置模式
         self.fe.eval()
         self.lp[0].eval()
@@ -134,13 +132,13 @@ class Trainer:
             correct2 += pred2.eq(label.data.view_as(pred1)).cpu().sum()
             correct3 += pred3.eq(label.data.view_as(pred1)).cpu().sum()
 
-        logger.info('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
+        logger.debug('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
             correct1, len(dataloader.dataset), 100. * float(correct1) / len(dataloader.dataset)
         ))
-        logger.info('\n预测器2的正确率: {}/{} ({:.4f}%)'.format(
+        logger.debug('\n预测器2的正确率: {}/{} ({:.4f}%)'.format(
             correct2, len(dataloader.dataset), 100. * float(correct2) / len(dataloader.dataset)
         ))
-        logger.info('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
+        logger.debug('\n预测器3的正确率: {}/{} ({:.4f}%)'.format(
             correct3, len(dataloader.dataset), 100. * float(correct3) / len(dataloader.dataset)
         ))
 
@@ -151,7 +149,7 @@ class Trainer:
         :param initial_dataset:  初始数据集。
         :param unlabeled_dataset:   未标记的数据集。
         """
-        logger.info("update")
+        logger.debug("update")
         # setup models
         self.fe.train()
         self.lp[0].train()
@@ -160,13 +158,13 @@ class Trainer:
         flag = 1
         sigma = params.sigma_0
         mu = unlabeled_dataset
-        l = [[], [], []]
+        lv = [[], [], []]
         for i in initial_dataset:
-            l[0].append([i[0], i[1][0]])
-            l[1].append([i[0], i[1][1]])
-            l[2].append([i[0], i[1][2]])
+            lv[0].append([i[0], i[1][0]])
+            lv[1].append([i[0], i[1][1]])
+            lv[2].append([i[0], i[1][2]])
         for t in range(1, params.T + 1):
-            n_t = min(1000 * 2 ^ t, params.U)
+            n_t = min(1000 * pow(2, t), params.U)
             if n_t == params.U:
                 if t % 4 == 0:
                     continue
@@ -176,11 +174,15 @@ class Trainer:
             else:
                 sigma_t = sigma
             for v in range(0, 3):
+                logger.debug("第" + str(t) + "轮，未标记的数据集大小: " + str(n_t) + "，训练模型" + str(v))
                 plv = self.labeling((v + 1) % 3, (v + 2) % 3, mu, n_t, sigma_t)
+                logger.debug("labeling plv: " + str(len(plv)))
                 plv = self.des(plv, (v + 1) % 3, (v + 2) % 3)
-                lv = l[v] + plv
-                dataset = custom_dataset.List2DataSet(lv)
-                self.train(epoch=params.update_epochs, dataset=dataset, mv=v)
+                logger.debug("des plv: " + str(len(plv)))
+                plv = lv[v] + plv
+                dataset = custom_dataset.List2DataSet(plv)
+                for epoch in range(params.update_epochs):
+                    self.train(epoch=epoch, dataset=dataset, mv=v)
 
     def labeling(self, mj, mh, mu, nt, sigma_t):
         """
@@ -193,7 +195,7 @@ class Trainer:
         :param sigma_t: 过滤不确定的伪标签的阈值参数。
         :return: 打好伪标签的数据集。
         """
-        logger.info("labeling")
+        logger.debug("labeling")
         dataloader = utils.get_dataloader(dataset=mu, shuffle=False)
 
         plv = []
@@ -208,15 +210,15 @@ class Trainer:
 
             preds_j = self.lp[mj](feature).data.max(1, keepdim=True)
             preds_h = self.lp[mh](feature).data.max(1, keepdim=True)
-
-            for i in range(0, params.batch_size):
-                equals = (preds_j[1][i] == preds_h[1][i])
-                confident = ((preds_j[0][i] + preds_h[0][i]) / 2 >= math.log(sigma_t))
-                if equals and confident:
+            equals = preds_j[1].eq(preds_h[1])
+            confident = ((preds_j[0] + preds_h[0]) / 2 >= math.log(sigma_t))
+            result = equals * confident
+            for idx, i in enumerate(result):
+                if i.item():
                     # 10分类，所以生成了一个长度为10的one-hot
                     label = torch.zeros(10)
-                    label[preds_j[1][i].item()] = label[preds_j[1][i].item()] + 1
-                    plv.append([inputs[i].cpu(), label])
+                    label[preds_j[1][idx].item()] = label[preds_j[1][idx].item()] + 1
+                    plv.append([inputs[idx].cpu(), label])
         return plv
 
     def des(self, plv, mj, mh):
@@ -228,7 +230,7 @@ class Trainer:
         :param mh:  三个预测model之一，且与mj不同。
         :return: 稳定的伪标签数据集。
         """
-        logger.info("des")
+        logger.debug("des")
         # 设置模式
         self.fe.train()
         self.lp[0].train()

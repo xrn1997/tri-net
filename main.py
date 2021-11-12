@@ -58,8 +58,8 @@ def main():
     #     # 保存日志到文件
     #     utils.log_save(params.save_dir, start_time=start_time, limit=3600)
     #     start_time = time.time()
-    #
-    # trainer.test(dataset=test_dataset)
+
+    trainer.test(dataset=test_dataset)
     trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
     trainer.test(dataset=test_dataset)
 
