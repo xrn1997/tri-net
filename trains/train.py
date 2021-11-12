@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import torch.cuda
+from torch import nn
 from torch.autograd import Variable
 from logzero import logger
 import models
@@ -21,7 +22,7 @@ class Trainer:
 
         # 损失函数
         self.class_criterion = models.OneHotNLLLoss(reduction='multiply')
-        self.update_criterion = models.OneHotNLLLoss()
+        self.update_criterion = nn.NLLLoss()
         self.tri_net_criterion = models.TriNetLoss()
         # 优化器
         self.optimizer = optimizer
@@ -85,12 +86,12 @@ class Trainer:
             output_loss = loss.item()
 
         logger.info('epoch:{}\tLoss: {:.6f}\t'.format(epoch, output_loss))
-
-        save_path = params.tri_net_save_path
-        torch.save(self.fe.state_dict(), save_path + "/fe.pth")
-        torch.save(self.lp[0].state_dict(), save_path + "/lp1.pth")
-        torch.save(self.lp[1].state_dict(), save_path + "/lp2.pth")
-        torch.save(self.lp[2].state_dict(), save_path + "/lp3.pth")
+        if mv == -1:
+            save_path = params.tri_net_save_path
+            torch.save(self.fe.state_dict(), save_path + "/fe.pth")
+            torch.save(self.lp[0].state_dict(), save_path + "/lp1.pth")
+            torch.save(self.lp[1].state_dict(), save_path + "/lp2.pth")
+            torch.save(self.lp[2].state_dict(), save_path + "/lp3.pth")
 
     def test(self, dataset):
         logger.debug("test")
@@ -152,11 +153,13 @@ class Trainer:
         flag = 1
         sigma = params.sigma_0
         mu = unlabeled_dataset
-        lv = [[], [], []]
+        lv = [[], [], [], []]
         for i in initial_dataset:
             lv[0].append([i[0], i[1][0]])
             lv[1].append([i[0], i[1][1]])
             lv[2].append([i[0], i[1][2]])
+        for j in lv[0]:
+            lv[3].append([j[0], j[1].argmax()])
         for t in range(1, params.T + 1):
             n_t = min(1000 * pow(2, t), params.U)
             if n_t == params.U:
@@ -168,13 +171,13 @@ class Trainer:
             else:
                 sigma_t = sigma
             for v in range(0, 3):
-                logger.debug("第" + str(t) + "轮，未标记的数据集大小: " + str(n_t) + "，训练模型" + str(v))
+                logger.info("第" + str(t) + "轮，未标记的数据集大小: " + str(n_t) + "，训练模型" + str(v))
                 plv = self.labeling((v + 1) % 3, (v + 2) % 3, mu, n_t, sigma_t)
                 logger.debug("labeling plv: " + str(len(plv)))
                 plv = self.des(plv, (v + 1) % 3, (v + 2) % 3)
                 logger.debug("des plv: " + str(len(plv)))
-                plv = lv[v] + plv
-                dataset = custom_dataset.List2DataSet(plv)
+                data_list = lv[3] + plv
+                dataset = custom_dataset.List2DataSet(data_list)
                 for epoch in range(params.update_epochs):
                     self.train(epoch=epoch, dataset=dataset, mv=v)
                 self.test(test_dataset)
@@ -210,10 +213,7 @@ class Trainer:
             result = equals * confident
             for idx, i in enumerate(result):
                 if i.item():
-                    # 10分类，所以生成了一个长度为10的one-hot
-                    label = torch.zeros(10)
-                    label[preds_j[1][idx].item()] = label[preds_j[1][idx].item()] + 1
-                    plv.append([inputs[idx].cpu(), label])
+                    plv.append([inputs[idx].cpu(), preds_j[1][idx].cpu().squeeze()])
         return plv
 
     def des(self, plv, mj, mh):
@@ -238,7 +238,7 @@ class Trainer:
         for index, data in enumerate(dataloader):
             inputs, labels = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
-            labels = Variable(labels).to(self.device, non_blocking=True).data.max(1, keepdim=True)[1]
+            labels = Variable(labels).to(self.device, non_blocking=True)
             # 记录预测错误的次数
             k = torch.zeros(inputs.shape[0])
             for time in range(0, 9):
@@ -251,5 +251,4 @@ class Trainer:
             for n in range(0, inputs.shape[0]):
                 if k[n] > 3:
                     plv.pop(index + n)
-
         return plv

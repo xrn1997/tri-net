@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import torch
+import torchvision.datasets
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 from logzero import logger
@@ -44,6 +45,7 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         transforms.Normalize(mean=params.dataset_mean, std=params.dataset_std)
     ])
+    # dataset = torchvision.datasets.MNIST(root='./MNIST', transform=tf)
     dataset = MNISTDataSet(root='./MNIST', transform=tf)
     logger.info(dataset[0])
 

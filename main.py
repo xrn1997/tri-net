@@ -54,7 +54,7 @@ def main():
     # 日志存储
     utils.log_save(params.save_dir)
     start_time = time.time()
-    logger.debug("initial_model")
+    logger.info("initial_model")
     for epoch in range(params.initial_epochs):
         trainer.train(epoch=epoch, dataset=initial_dataset)
 
