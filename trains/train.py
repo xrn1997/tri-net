@@ -27,18 +27,18 @@ class Trainer:
         self.optimizer = optimizer
 
     def train(self, epoch, dataset, mv=-1):
-        logger.debug("train")
         # 设置模式
         self.fe.train()
         self.lp[0].train()
         self.lp[1].train()
         self.lp[2].train()
         # dataloader
-        dataloader = utils.get_dataloader(dataset=dataset, drop_last=True)
+        dataloader = utils.get_dataloader(dataset=dataset)
         # steps
         start_steps = epoch * len(dataloader)
         total_steps = params.initial_epochs * len(dataloader)
-
+        # 损失
+        output_loss = 0
         for batch_idx, data in enumerate(dataloader):
 
             p = float(batch_idx + start_steps) / total_steps
@@ -82,16 +82,9 @@ class Trainer:
                 # 反向传播
                 loss.backward()
             self.optimizer.step()
+            output_loss = loss.item()
 
-            # 每5批次输出一次损失
-            if (batch_idx + 1) % 5 == 0 or (batch_idx + 1) * len(data) == len(dataloader.dataset):
-                logger.debug('epoch:{}\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}\t'.format(
-                    epoch,
-                    (batch_idx + 1) * len(inputs),
-                    len(dataloader.dataset),
-                    100. * (batch_idx + 1) / len(dataloader),
-                    loss.item()
-                ))
+        logger.info('epoch:{}\tLoss: {:.6f}\t'.format(epoch, output_loss))
 
         save_path = params.tri_net_save_path
         torch.save(self.fe.state_dict(), save_path + "/fe.pth")
@@ -142,10 +135,11 @@ class Trainer:
             correct3, len(dataloader.dataset), 100. * float(correct3) / len(dataloader.dataset)
         ))
 
-    def update(self, initial_dataset, unlabeled_dataset) -> None:
+    def update(self, initial_dataset, unlabeled_dataset, test_dataset) -> None:
         """
         更新模型。
 
+        :param test_dataset: 测试用数据集
         :param initial_dataset:  初始数据集。
         :param unlabeled_dataset:   未标记的数据集。
         """
@@ -183,6 +177,7 @@ class Trainer:
                 dataset = custom_dataset.List2DataSet(plv)
                 for epoch in range(params.update_epochs):
                     self.train(epoch=epoch, dataset=dataset, mv=v)
+                self.test(test_dataset)
 
     def labeling(self, mj, mh, mu, nt, sigma_t):
         """

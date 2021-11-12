@@ -2,6 +2,8 @@ import os
 import time
 
 import torch
+from logzero import logger
+
 import params
 import tools.utils as ut
 from tools import utils
@@ -50,18 +52,17 @@ def main():
     trainer = Trainer(feature_extractor, label_predictor, optimizer)
 
     # 日志存储
-    # utils.log_save(params.save_dir)
-    # start_time = time.time()
-    # for epoch in range(params.initial_epochs):
-    #     trainer.train(epoch=epoch, dataset=initial_dataset)
-    #
-    #     # 保存日志到文件
-    #     utils.log_save(params.save_dir, start_time=start_time, limit=3600)
-    #     start_time = time.time()
+    utils.log_save(params.save_dir)
+    start_time = time.time()
+    logger.debug("initial_model")
+    for epoch in range(params.initial_epochs):
+        trainer.train(epoch=epoch, dataset=initial_dataset)
 
+        # 保存日志到文件
+        utils.log_save(params.save_dir, start_time=start_time, limit=3600)
+        start_time = time.time()
     trainer.test(dataset=test_dataset)
-    trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset)
-    trainer.test(dataset=test_dataset)
+    trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset, test_dataset=test_dataset)
 
 
 if __name__ == '__main__':
