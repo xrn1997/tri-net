@@ -46,7 +46,7 @@ class Trainer:
         self.lp[1].train()
         self.lp[2].train()
         # dataloader
-        dataloader = utils.get_dataloader(dataset=dataset)
+        dataloader = utils.get_dataloader(dataset=dataset, drop_last=True)
         # steps
         start_steps = epoch * len(dataloader)
         total_steps = params.initial_epochs * len(dataloader)
@@ -258,7 +258,7 @@ class Trainer:
         self.lp[1].train()
         self.lp[2].train()
         dataset = custom_dataset.List2DataSet(plv)
-        dataloader = utils.get_dataloader(dataset)
+        dataloader = utils.get_dataloader(dataset, drop_last=True)
         new_plv = []
         for index, data in enumerate(dataloader):
             inputs, labels = data
