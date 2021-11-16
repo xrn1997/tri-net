@@ -2,7 +2,9 @@ import torch.nn as nn
 
 
 class ConvBlock(nn.Module):
-
+    """
+    卷积块
+    """
     def __init__(self, in_channels, out_channels, kernel_size, padding):
         super(ConvBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
@@ -21,7 +23,9 @@ class ConvBlock(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-
+    """
+    残差块
+    """
     def __init__(self, in_channels, out_channels, kernel_size, padding):
         super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
@@ -40,7 +44,9 @@ class ResidualBlock(nn.Module):
 
 
 class MaxPooling(nn.Module):
-
+    """
+    最大池化
+    """
     def __init__(self, num_feature):
         super(MaxPooling, self).__init__()
         self.max_pool = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
@@ -57,7 +63,9 @@ class MaxPooling(nn.Module):
 
 
 class AvgPooling(nn.Module):
-
+    """
+    平均池化
+    """
     def __init__(self, num_feature):
         super(AvgPooling, self).__init__()
         self.avg_pool = nn.AvgPool2d(kernel_size=(1, 1))

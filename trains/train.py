@@ -1,5 +1,4 @@
 import math
-import os
 
 import numpy as np
 import torch.cuda
@@ -14,10 +13,12 @@ from tools import utils
 
 class Trainer:
     def __init__(self, feature_extractor, label_predictor: [], optimizer):
+        # GPU or CPU
         if torch.cuda.is_available() and params.use_gpu:
             self.device = torch.device("cuda")
         else:
             self.device = torch.device("cpu")
+        # 加载模型到指定设备
         self.fe = feature_extractor.to(self.device)
         self.lp = [label_predictor[0].to(self.device), label_predictor[1].to(self.device),
                    label_predictor[2].to(self.device)]
@@ -29,7 +30,16 @@ class Trainer:
         # 优化器
         self.optimizer = optimizer
 
-    def train(self, epoch, dataset, mv=-1):
+    def train(self, epoch, dataset, mv=-1) -> None:
+        """
+        训练数据集
+
+        :param epoch: 训练轮数
+        :param dataset: 数据集
+        :param mv: 默认值为-1，即正常训练且保存训练模型，mv不为-1时只训练mv，mv为0时训练mv和ms。这里
+            mv为标签预测器，ms为特征提取器。
+        """
+
         # 设置模式
         self.fe.train()
         self.lp[0].train()
@@ -44,13 +54,12 @@ class Trainer:
         output_loss = 0
         for batch_idx, data in enumerate(dataloader):
 
+            # 用于调整学习率
             p = float(batch_idx + start_steps) / total_steps
-            constant = 2. / (1. + np.exp(-params.gamma * p)) - 1
 
             # 优化器
             self.optimizer = utils.optimizer_scheduler(self.optimizer, p)
             self.optimizer.zero_grad()
-
             inputs, labels = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
             if mv == 0:
@@ -84,7 +93,9 @@ class Trainer:
                 loss = self.update_criterion(preds, labels)
                 # 反向传播
                 loss.backward()
+            # 更新参数
             self.optimizer.step()
+            # 保存当前损失，用于打印输出
             output_loss = loss.item()
 
         logger.info('epoch:{}\tLoss: {:.6f}\t'.format(epoch, output_loss))
@@ -95,7 +106,12 @@ class Trainer:
             torch.save(self.lp[1].state_dict(), save_path + "/lp2.pth")
             torch.save(self.lp[2].state_dict(), save_path + "/lp3.pth")
 
-    def test(self, dataset):
+    def test(self, dataset) -> None:
+        """
+         测试数据集
+
+        :param dataset: 数据集
+        """
         logger.debug("test")
         # 设置模式
         self.fe.eval()
@@ -108,6 +124,7 @@ class Trainer:
         correct2 = 0.0
         correct3 = 0.0
 
+        # dataloader
         dataloader = utils.get_dataloader(dataset=dataset)
 
         for batch_idx, data in enumerate(dataloader):
@@ -254,6 +271,6 @@ class Trainer:
                 error_h = preds_h.ne(labels.data.view_as(preds_h)).cpu().squeeze()
                 k = k + error_j + error_h
             for n in range(0, inputs.shape[0]):
-                if k[n] < 3:
+                if k[n] <= 3:
                     new_plv.append([inputs[n].cpu(), labels[n].cpu()])
         return new_plv

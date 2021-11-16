@@ -9,6 +9,13 @@ import custom_dataset
 
 
 def get_dataset(dataset, train=True):
+    """
+     获取dataset
+
+    :param dataset: 数据集名称
+    :param train: 是否是训练集
+    :return: dataset
+    """
     if dataset == 'MNIST':
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -25,6 +32,15 @@ def get_dataset(dataset, train=True):
 
 
 def get_dataloader(dataset, batch_size=params.batch_size, shuffle=True, drop_last=False):
+    """
+    dataloader的一层封装
+
+    :param dataset: 数据集
+    :param batch_size: batch大小
+    :param shuffle: 是否乱序
+    :param drop_last: 不足batch大小时是否丢弃
+    :return: 返回dataloader
+    """
     return DataLoader(dataset=dataset,
                       batch_size=batch_size,  # 每次处理的batch大小
                       shuffle=shuffle,  # shuffle的作用是乱序，先顺序读取，再乱序索引。

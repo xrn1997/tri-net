@@ -12,6 +12,9 @@ from tools import utils
 
 
 class MNISTDataSet(Dataset):
+    """
+    自定义的MNIST数据集
+    """
     def __init__(self, root, transform=None):
         self.data = datasets.MNIST(root=root, train=True, transform=transform,
                                    download=True)
