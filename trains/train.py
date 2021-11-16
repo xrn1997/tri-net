@@ -1,4 +1,6 @@
 import math
+import os
+
 import numpy as np
 import torch.cuda
 from torch import nn
@@ -164,6 +166,10 @@ class Trainer:
             n_t = min(1000 * pow(2, t), params.U)
             if n_t == params.U:
                 if t % 4 == 0:
+                    for epoch in range(params.initial_epochs):
+                        self.train(epoch=epoch, dataset=initial_dataset)
+                    flag = 1
+                    sigma = sigma - 0.05
                     continue
             if flag == 1:
                 flag = 0
@@ -231,10 +237,9 @@ class Trainer:
         self.lp[0].train()
         self.lp[1].train()
         self.lp[2].train()
-
         dataset = custom_dataset.List2DataSet(plv)
-        dataloader = utils.get_dataloader(dataset, shuffle=False, drop_last=True)
-
+        dataloader = utils.get_dataloader(dataset)
+        new_plv = []
         for index, data in enumerate(dataloader):
             inputs, labels = data
             inputs = Variable(inputs).to(self.device, non_blocking=True)
@@ -249,6 +254,6 @@ class Trainer:
                 error_h = preds_h.ne(labels.data.view_as(preds_h)).cpu().squeeze()
                 k = k + error_j + error_h
             for n in range(0, inputs.shape[0]):
-                if k[n] > 3:
-                    plv.pop(index + n)
-        return plv
+                if k[n] < 3:
+                    new_plv.append([inputs[n].cpu(), labels[n].cpu()])
+        return new_plv
