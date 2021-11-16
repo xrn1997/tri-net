@@ -180,7 +180,8 @@ class Trainer:
         for j in lv[0]:
             lv[3].append([j[0], j[1].argmax()])
         for t in range(1, params.T + 1):
-            n_t = min(1000 * pow(2, t), params.U)
+            # n_t = min(1000 * pow(2, t), params.U)
+            n_t = params.U
             if n_t == params.U:
                 if t % 4 == 0:
                     for epoch in range(params.initial_epochs):
@@ -249,6 +250,8 @@ class Trainer:
         :return: 稳定的伪标签数据集。
         """
         logger.debug("des")
+        if len(plv) == 0:
+            return []
         # 设置模式
         self.fe.train()
         self.lp[0].train()
