@@ -52,18 +52,18 @@ def main():
     trainer = Trainer(feature_extractor, label_predictor, optimizer)
 
     # 日志存储
-    # utils.log_save(params.save_dir)
-    # start_time = time.time()
-    # logger.info("initial_model")
-    # # 初始化训练
-    # for epoch in range(params.initial_epochs):
-    #     trainer.train(epoch=epoch, dataset=initial_dataset)
-    #
-    #     # 保存日志到文件
-    #     utils.log_save(params.save_dir, start_time=start_time, limit=3600)
-    #     start_time = time.time()
-    # # 测试
-    # trainer.test(dataset=test_dataset)
+    utils.log_save(params.save_dir)
+    start_time = time.time()
+    logger.info("initial_model")
+    # 初始化训练
+    for epoch in range(params.initial_epochs):
+        trainer.train(epoch=epoch, dataset=initial_dataset)
+
+        # 保存日志到文件
+        utils.log_save(params.save_dir, start_time=start_time, limit=3600)
+        start_time = time.time()
+    # 测试
+    trainer.test(dataset=test_dataset)
     # 用未标记的数据集更新模型
     trainer.update(initial_dataset=initial_dataset, unlabeled_dataset=unlabeled_dataset, test_dataset=test_dataset)
 
