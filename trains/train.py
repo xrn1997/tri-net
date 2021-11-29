@@ -64,7 +64,7 @@ class Trainer:
             inputs = Variable(inputs).to(self.device, non_blocking=True)
             if mv == 0:
                 # 提取特征
-                feature = self.fe(inputs).data
+                feature = self.fe(inputs).detach()
             else:
                 feature = self.fe(inputs)
             if mv == -1:
@@ -136,14 +136,14 @@ class Trainer:
             feature = self.fe(inputs)
 
             # 预测标签
-            pred1 = self.lp[0](feature).data.max(1, keepdim=True)[1]
-            pred2 = self.lp[1](feature).data.max(1, keepdim=True)[1]
-            pred3 = self.lp[2](feature).data.max(1, keepdim=True)[1]
+            pred1 = self.lp[0](feature).detach().max(1, keepdim=True)[1]
+            pred2 = self.lp[1](feature).detach().max(1, keepdim=True)[1]
+            pred3 = self.lp[2](feature).detach().max(1, keepdim=True)[1]
 
             # 结果
-            correct1 += pred1.eq(label.data.view_as(pred1)).cpu().sum()
-            correct2 += pred2.eq(label.data.view_as(pred1)).cpu().sum()
-            correct3 += pred3.eq(label.data.view_as(pred1)).cpu().sum()
+            correct1 += pred1.eq(label.detach().view_as(pred1)).cpu().sum()
+            correct2 += pred2.eq(label.detach().view_as(pred2)).cpu().sum()
+            correct3 += pred3.eq(label.detach().view_as(pred3)).cpu().sum()
 
         logger.debug('\n预测器1的正确率: {}/{} ({:.4f}%)'.format(
             correct1, len(dataloader.dataset), 100. * float(correct1) / len(dataloader.dataset)
@@ -164,11 +164,6 @@ class Trainer:
         :param unlabeled_dataset:   未标记的数据集。
         """
         logger.debug("update")
-        # setup models
-        self.fe.train()
-        self.lp[0].train()
-        self.lp[1].train()
-        self.lp[2].train()
         flag = 1
         sigma = params.sigma_0
         mu = unlabeled_dataset
@@ -180,12 +175,27 @@ class Trainer:
         for j in lv[0]:
             lv[3].append([j[0], j[1].argmax()])
         for t in range(1, params.T + 1):
-            # n_t = min(1000 * pow(2, t), params.U)
-            n_t = params.U
+
+            # setup models
+            self.fe.train()
+            self.lp[0].train()
+            self.lp[1].train()
+            self.lp[2].train()
+
+            n_t = min(1000 * pow(2, t), params.U)
             if n_t == params.U:
                 if t % 4 == 0:
+                    logger.info("第" + str(t) + "轮，用初始训练集校准")
+                    self.optimizer = torch.optim.SGD([{'params': self.fe.parameters()},
+                                                      {'params': self.lp[0].parameters()},
+                                                      {'params': self.lp[1].parameters()},
+                                                      {'params': self.lp[2].parameters()}],
+                                                     lr=params.learning_rate,
+                                                     momentum=0.9,
+                                                     weight_decay=0.0001)
                     for epoch in range(params.initial_epochs):
                         self.train(epoch=epoch, dataset=initial_dataset)
+                    self.test(test_dataset)
                     flag = 1
                     sigma = sigma - 0.05
                     continue
@@ -202,6 +212,17 @@ class Trainer:
                 logger.debug("des plv: " + str(len(plv)))
                 data_list = lv[3] + plv
                 dataset = custom_dataset.List2DataSet(data_list)
+                if v == 0:
+                    self.optimizer = torch.optim.SGD([{'params': self.fe.parameters()},
+                                                      {'params': self.lp[0].parameters()}],
+                                                     lr=params.learning_rate,
+                                                     momentum=0.9,
+                                                     weight_decay=0.0001)
+                else:
+                    self.optimizer = torch.optim.SGD(self.lp[v].parameters(),
+                                                     lr=params.learning_rate,
+                                                     momentum=0.9,
+                                                     weight_decay=0.0001)
                 for epoch in range(params.update_epochs):
                     self.train(epoch=epoch, dataset=dataset, mv=v)
                 self.test(test_dataset)
@@ -230,8 +251,8 @@ class Trainer:
 
             feature = self.fe(inputs)
 
-            preds_j = self.lp[mj](feature).data.max(1, keepdim=True)
-            preds_h = self.lp[mh](feature).data.max(1, keepdim=True)
+            preds_j = self.lp[mj](feature).detach().max(1, keepdim=True)
+            preds_h = self.lp[mh](feature).detach().max(1, keepdim=True)
             equals = preds_j[1].eq(preds_h[1])
             confident = ((preds_j[0] + preds_h[0]) / 2 >= math.log(sigma_t))
             result = equals * confident
@@ -268,10 +289,10 @@ class Trainer:
             k = torch.zeros(inputs.shape[0])
             for time in range(0, 9):
                 feature = self.fe(inputs)
-                preds_j = self.lp[mj](feature).data.max(1, keepdim=True)[1]
-                preds_h = self.lp[mh](feature).data.max(1, keepdim=True)[1]
-                error_j = preds_j.ne(labels.data.view_as(preds_j)).cpu().squeeze()
-                error_h = preds_h.ne(labels.data.view_as(preds_h)).cpu().squeeze()
+                preds_j = self.lp[mj](feature).detach().max(1, keepdim=True)[1]
+                preds_h = self.lp[mh](feature).detach().max(1, keepdim=True)[1]
+                error_j = preds_j.ne(labels.detach().view_as(preds_j)).cpu().squeeze()
+                error_h = preds_h.ne(labels.detach().view_as(preds_h)).cpu().squeeze()
                 k = k + error_j + error_h
             for n in range(0, inputs.shape[0]):
                 if k[n] <= 3:

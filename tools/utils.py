@@ -45,7 +45,7 @@ def get_dataloader(dataset, batch_size=params.batch_size, shuffle=True, drop_las
                       batch_size=batch_size,  # 每次处理的batch大小
                       shuffle=shuffle,  # shuffle的作用是乱序，先顺序读取，再乱序索引。
                       num_workers=1,  # 线程数
-                      pin_memory=True,
+                      pin_memory=False,
                       drop_last=drop_last)
 
 
